@@ -1,5 +1,5 @@
 import logging
-from fastapi import FastAPI, HTTPException, Depends
+from fastapi import FastAPI, HTTPException, Depends, Request
 from fastapi.security.api_key import APIKeyHeader
 from markitdown import MarkItDown
 import os
@@ -81,6 +81,36 @@ async def get_api_key(api_key_header: str = Depends(api_key_header)):
 @app.post("/convert-from-url")
 async def convert_from_url(drive_url: DriveURL, api_key: str = Depends(get_api_key)):
     return convert_pdf_to_markdown(drive_url.url)
+
+
+@app.post("/notion-webhook")
+async def notion_webhook(request: Request, api_key: str = Depends(get_api_key)):
+    try:
+        payload = await request.json()
+        # Navigate through the JSON structure to find the URL
+        files = (
+            payload.get("data", {})
+            .get("properties", {})
+            .get("File", {})
+            .get("files", [])
+        )
+        if not files:
+            raise HTTPException(status_code=400, detail="No files found in the request")
+
+        # Assuming the first file is the one we want
+        file_info = files[0]
+        drive_url = file_info.get("external", {}).get("url")
+        if not drive_url:
+            raise HTTPException(
+                status_code=400, detail="No valid URL found in the file information"
+            )
+
+        # Call the conversion function
+        return convert_pdf_to_markdown(drive_url)
+
+    except Exception as e:
+        logger.error(f"Error processing Notion webhook: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to process Notion webhook")
 
 
 @app.get("/")
