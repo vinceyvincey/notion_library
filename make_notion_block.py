@@ -35,6 +35,18 @@ class NotionBlockMaker:
             bool: True if successful, False otherwise
         """
         try:
+            # Find the start of the actual content (from Abstract)
+            content_start = markdown_content.find("**Abstract**")
+            if content_start == -1:
+                content_start = markdown_content.find("Abstract")
+
+            if content_start == -1:
+                logger.error("No Abstract section found in the content")
+                return False
+
+            # Only process content from Abstract onwards
+            markdown_content = markdown_content[content_start:]
+
             # Split content into sections based on headers
             sections = self._split_into_sections(markdown_content)
 
@@ -56,7 +68,7 @@ class NotionBlockMaker:
         current_section = []
 
         for line in markdown_content.split("\n"):
-            if line.startswith("#") and current_section:
+            if line.startswith("**") and "**" in line[2:] and current_section:
                 sections.append("\n".join(current_section))
                 current_section = []
             current_section.append(line)
@@ -75,20 +87,63 @@ class NotionBlockMaker:
             if not line.strip():
                 continue
 
-            if line.startswith("# "):
-                blocks.append(self._create_heading_1_block(line[2:]))
-            elif line.startswith("## "):
-                blocks.append(self._create_heading_2_block(line[3:]))
-            elif line.startswith("### "):
-                blocks.append(self._create_heading_3_block(line[4:]))
-            elif line.startswith("- "):
-                blocks.append(self._create_bullet_list_block(line[2:]))
-            elif line.startswith("1. "):
-                blocks.append(self._create_numbered_list_block(line[3:]))
+            # Handle bold headers (e.g., **Abstract**)
+            if line.startswith("**") and line.endswith("**"):
+                header_text = line.strip("*")
+                blocks.append(self._create_heading_1_block(header_text))
+            # Handle bullet points
+            elif line.strip().startswith("*"):
+                text = line.strip().lstrip("*").strip()
+                blocks.append(self._create_bullet_list_block(text))
+            # Handle numbered lists
+            elif line.strip().startswith("1.") or line.strip().startswith("2."):
+                text = line.strip().split(".", 1)[1].strip()
+                blocks.append(self._create_numbered_list_block(text))
             else:
-                blocks.append(self._create_paragraph_block(line))
+                # Process inline bold text
+                text = self._process_inline_formatting(line)
+                blocks.append(self._create_paragraph_block(text))
 
         return blocks
+
+    def _process_inline_formatting(self, text: str) -> list:
+        """Process inline markdown formatting."""
+        # Split the text by bold markers
+        parts = []
+        current_pos = 0
+        bold_start = text.find("**", current_pos)
+
+        while bold_start != -1:
+            # Add non-bold text before
+            if bold_start > current_pos:
+                parts.append(
+                    {"type": "text", "text": {"content": text[current_pos:bold_start]}}
+                )
+
+            # Find the end of bold text
+            bold_end = text.find("**", bold_start + 2)
+            if bold_end == -1:
+                break
+
+            # Add bold text
+            parts.append(
+                {
+                    "type": "text",
+                    "text": {
+                        "content": text[bold_start + 2 : bold_end],
+                        "annotations": {"bold": True},
+                    },
+                }
+            )
+
+            current_pos = bold_end + 2
+            bold_start = text.find("**", current_pos)
+
+        # Add remaining text
+        if current_pos < len(text):
+            parts.append({"type": "text", "text": {"content": text[current_pos:]}})
+
+        return parts if parts else [{"type": "text", "text": {"content": text}}]
 
     def _create_heading_1_block(self, text: str) -> Dict[str, Any]:
         """Create a heading 1 block."""
@@ -100,33 +155,13 @@ class NotionBlockMaker:
             },
         }
 
-    def _create_heading_2_block(self, text: str) -> Dict[str, Any]:
-        """Create a heading 2 block."""
-        return {
-            "object": "block",
-            "type": "heading_2",
-            "heading_2": {
-                "rich_text": [{"type": "text", "text": {"content": text.strip()}}]
-            },
-        }
-
-    def _create_heading_3_block(self, text: str) -> Dict[str, Any]:
-        """Create a heading 3 block."""
-        return {
-            "object": "block",
-            "type": "heading_3",
-            "heading_3": {
-                "rich_text": [{"type": "text", "text": {"content": text.strip()}}]
-            },
-        }
-
     def _create_bullet_list_block(self, text: str) -> Dict[str, Any]:
         """Create a bullet list block."""
         return {
             "object": "block",
             "type": "bulleted_list_item",
             "bulleted_list_item": {
-                "rich_text": [{"type": "text", "text": {"content": text.strip()}}]
+                "rich_text": self._process_inline_formatting(text.strip())
             },
         }
 
@@ -136,7 +171,7 @@ class NotionBlockMaker:
             "object": "block",
             "type": "numbered_list_item",
             "numbered_list_item": {
-                "rich_text": [{"type": "text", "text": {"content": text.strip()}}]
+                "rich_text": self._process_inline_formatting(text.strip())
             },
         }
 
@@ -145,9 +180,7 @@ class NotionBlockMaker:
         return {
             "object": "block",
             "type": "paragraph",
-            "paragraph": {
-                "rich_text": [{"type": "text", "text": {"content": text.strip()}}]
-            },
+            "paragraph": {"rich_text": self._process_inline_formatting(text.strip())},
         }
 
     def _append_blocks_to_page(self, page_id: str, blocks: list) -> bool:
