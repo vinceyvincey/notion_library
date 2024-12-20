@@ -100,10 +100,13 @@ class NotionBlockMaker:
             # Handle numbered lists
             elif line.strip().startswith("1.") or line.strip().startswith("2."):
                 text = line.strip().split(".", 1)[1].strip()
+                # Remove any remaining markdown formatting
+                text = text.replace("**", "")  # Remove bold
                 blocks.append(self._create_numbered_list_block(text))
             else:
-                # Process inline bold text
-                blocks.append(self._create_paragraph_block(line.strip()))
+                # Process text without formatting
+                text = line.strip().replace("**", "")  # Remove bold formatting
+                blocks.append(self._create_paragraph_block(text))
 
         return blocks
 
@@ -172,7 +175,9 @@ class NotionBlockMaker:
         return {
             "object": "block",
             "type": "numbered_list_item",
-            "numbered_list_item": {"rich_text": self._process_inline_formatting(text)},
+            "numbered_list_item": {
+                "rich_text": [{"type": "text", "text": {"content": text}}]
+            },
         }
 
     def _create_paragraph_block(self, text: str) -> Dict[str, Any]:
@@ -180,7 +185,7 @@ class NotionBlockMaker:
         return {
             "object": "block",
             "type": "paragraph",
-            "paragraph": {"rich_text": self._process_inline_formatting(text)},
+            "paragraph": {"rich_text": [{"type": "text", "text": {"content": text}}]},
         }
 
     def _append_blocks_to_page(self, page_id: str, blocks: list) -> bool:
