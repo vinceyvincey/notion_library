@@ -101,8 +101,7 @@ class NotionBlockMaker:
                 blocks.append(self._create_numbered_list_block(text))
             else:
                 # Process inline bold text
-                text = self._process_inline_formatting(line)
-                blocks.append(self._create_paragraph_block(text))
+                blocks.append(self._create_paragraph_block(line.strip()))
 
         return blocks
 
@@ -160,9 +159,7 @@ class NotionBlockMaker:
         return {
             "object": "block",
             "type": "bulleted_list_item",
-            "bulleted_list_item": {
-                "rich_text": self._process_inline_formatting(text.strip())
-            },
+            "bulleted_list_item": {"rich_text": self._process_inline_formatting(text)},
         }
 
     def _create_numbered_list_block(self, text: str) -> Dict[str, Any]:
@@ -170,9 +167,7 @@ class NotionBlockMaker:
         return {
             "object": "block",
             "type": "numbered_list_item",
-            "numbered_list_item": {
-                "rich_text": self._process_inline_formatting(text.strip())
-            },
+            "numbered_list_item": {"rich_text": self._process_inline_formatting(text)},
         }
 
     def _create_paragraph_block(self, text: str) -> Dict[str, Any]:
@@ -180,7 +175,7 @@ class NotionBlockMaker:
         return {
             "object": "block",
             "type": "paragraph",
-            "paragraph": {"rich_text": self._process_inline_formatting(text.strip())},
+            "paragraph": {"rich_text": self._process_inline_formatting(text)},
         }
 
     def _append_blocks_to_page(self, page_id: str, blocks: list) -> bool:
