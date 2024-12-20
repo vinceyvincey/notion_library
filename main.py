@@ -9,6 +9,7 @@ import re
 import sys
 from dotenv import load_dotenv
 from markdown_conversion import convert_pdf_to_markdown
+from make_notion_block import NotionBlockMaker
 
 # Load environment variables from .env file
 load_dotenv()
@@ -105,6 +106,15 @@ async def notion_webhook(request: Request, api_key: str = Depends(get_api_key)):
         payload = await request.json()
         logger.info(f"Received Notion webhook payload: {payload}")
 
+        # Get the page ID from the payload
+        page_id = payload.get("data", {}).get("id")
+        if not page_id:
+            raise HTTPException(
+                status_code=400, detail="No page ID found in the request"
+            )
+
+        logger.info(f"Extracted page ID: {page_id}")
+
         # Navigate through the JSON structure to find the URL
         files = (
             payload.get("data", {})
@@ -117,33 +127,61 @@ async def notion_webhook(request: Request, api_key: str = Depends(get_api_key)):
 
         # Assuming the first file is the one we want
         file_info = files[0]
-        drive_url = file_info.get("external", {}).get("url")
-
-        # Clean up the URL if necessary
-        if drive_url:
-            drive_url = drive_url.strip().strip(
-                ";"
-            )  # Remove any trailing semicolons or whitespace
-
-            # Extract file ID only if it hasn't been processed yet
-            if not drive_url.startswith("https://drive.google.com/uc"):
-                # Extract the file ID and construct a direct download link
-                file_id_match = re.search(r"/file/d/([a-zA-Z0-9_-]+)", drive_url)
-                if file_id_match:
-                    file_id = file_id_match.group(1)
-                    drive_url = f"https://drive.google.com/uc?id={file_id}"
-                    logger.info(f"Processed URL: {drive_url}")
+        drive_url = file_info.get("external", {}).get("url", "").strip(";")
 
         if not drive_url:
             raise HTTPException(
                 status_code=400, detail="No valid URL found in the file information"
             )
 
-        # Call the conversion function
-        return convert_pdf_to_markdown(drive_url)
+        logger.info(f"Original URL from Notion: {drive_url}")
+
+        # Extract file ID only if it hasn't been processed yet
+        if not drive_url.startswith("https://drive.google.com/uc"):
+            # Extract the file ID and construct a direct download link
+            file_id_match = re.search(r"/file/d/([a-zA-Z0-9_-]+)", drive_url)
+            if file_id_match:
+                file_id = file_id_match.group(1)
+                drive_url = f"https://drive.google.com/uc?id={file_id}"
+                logger.info(f"Processed URL: {drive_url}")
+            else:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Could not extract valid Google Drive file ID from URL",
+                )
+
+        # Convert PDF to markdown
+        try:
+            result = convert_pdf_to_markdown(drive_url)
+        except Exception as e:
+            logger.error(f"Error converting PDF: {str(e)}")
+            raise HTTPException(
+                status_code=500,
+                detail="Failed to convert PDF. Please ensure the Google Drive file is publicly accessible.",
+            )
+
+        if not result or "text_content" not in result:
+            raise HTTPException(
+                status_code=500, detail="Failed to convert PDF to markdown"
+            )
+
+        # Create Notion blocks from the markdown content
+        notion_maker = NotionBlockMaker()
+        success = notion_maker.create_blocks_from_markdown(
+            page_id, result["text_content"]
+        )
+
+        if not success:
+            raise HTTPException(
+                status_code=500, detail="Failed to create Notion blocks"
+            )
+
+        return {"status": "success", "message": "Content added to Notion page"}
 
     except Exception as e:
         logger.error(f"Error processing Notion webhook: {str(e)}")
+        if isinstance(e, HTTPException):
+            raise e
         raise HTTPException(status_code=500, detail="Failed to process Notion webhook")
 
 
