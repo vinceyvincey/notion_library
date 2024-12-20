@@ -91,9 +91,11 @@ class NotionBlockMaker:
             if line.startswith("**") and line.endswith("**"):
                 header_text = line.strip("*")
                 blocks.append(self._create_heading_1_block(header_text))
-            # Handle bullet points
+            # Handle bullet points - remove markdown formatting for bullets
             elif line.strip().startswith("*"):
                 text = line.strip().lstrip("*").strip()
+                # Remove any remaining markdown formatting for bullet points
+                text = text.replace("**", "")  # Remove bold
                 blocks.append(self._create_bullet_list_block(text))
             # Handle numbered lists
             elif line.strip().startswith("1.") or line.strip().startswith("2."):
@@ -156,10 +158,13 @@ class NotionBlockMaker:
 
     def _create_bullet_list_block(self, text: str) -> Dict[str, Any]:
         """Create a bullet list block."""
+        # For bullet points, we can't use annotations, so we'll use plain text
         return {
             "object": "block",
             "type": "bulleted_list_item",
-            "bulleted_list_item": {"rich_text": self._process_inline_formatting(text)},
+            "bulleted_list_item": {
+                "rich_text": [{"type": "text", "text": {"content": text}}]
+            },
         }
 
     def _create_numbered_list_block(self, text: str) -> Dict[str, Any]:
