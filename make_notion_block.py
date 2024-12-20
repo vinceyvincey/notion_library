@@ -122,11 +122,56 @@ class NotionBlockMaker:
 
         return chunks
 
+    def _process_equation_text(self, text: str) -> list:
+        """Process text that may contain equations marked with $ or $$."""
+        parts = []
+        current_pos = 0
+
+        # Find all equation patterns: both inline ($...$) and display ($$...$$)
+        while True:
+            # Find the next equation marker
+            inline_start = text.find("$", current_pos)
+            if inline_start == -1:
+                # No more equations, add remaining text
+                if current_pos < len(text):
+                    parts.append(
+                        {"type": "text", "text": {"content": text[current_pos:]}}
+                    )
+                break
+
+            # Add text before equation
+            if inline_start > current_pos:
+                parts.append(
+                    {
+                        "type": "text",
+                        "text": {"content": text[current_pos:inline_start]},
+                    }
+                )
+
+            # Check if it's a display equation ($$...$$)
+            is_display = text.startswith("$$", inline_start)
+            eq_start = inline_start + (2 if is_display else 1)
+
+            # Find the closing marker
+            eq_end = text.find("$$" if is_display else "$", eq_start)
+            if eq_end == -1:
+                # Unclosed equation, treat as text
+                parts.append({"type": "text", "text": {"content": text[inline_start:]}})
+                break
+
+            # Extract equation content
+            equation = text[eq_start:eq_end]
+            parts.append({"type": "equation", "equation": {"expression": equation}})
+
+            current_pos = eq_end + (2 if is_display else 1)
+
+        return parts if parts else [{"type": "text", "text": {"content": text}}]
+
     def _convert_section_to_blocks(self, section: str) -> list:
         """Convert a markdown section to Notion blocks."""
         blocks = []
         lines = section.split("\n")
-        was_numbered_list = False  # Track if previous item was a numbered list
+        was_numbered_list = False
 
         for line in lines:
             if not line.strip():
@@ -135,15 +180,24 @@ class NotionBlockMaker:
             # Handle section headers (e.g., ## Background)
             if line.strip().startswith("##"):
                 header_text = line.strip("#").strip()
+                # Remove any remaining ** markers
+                header_text = header_text.replace("*", "").strip()
                 blocks.append(self._create_heading_2_block(header_text))
                 was_numbered_list = False
             # Handle subsection headers (e.g., ### Methods)
             elif line.strip().startswith("###"):
                 header_text = line.strip("#").strip()
+                # Remove any remaining ** markers
+                header_text = header_text.replace("*", "").strip()
                 blocks.append(self._create_heading_3_block(header_text))
                 was_numbered_list = False
+            # Handle headers with ** syntax
+            elif line.strip().startswith("**") and line.strip().endswith("**"):
+                header_text = line.strip().strip("*").strip()
+                blocks.append(self._create_heading_2_block(header_text))
+                was_numbered_list = False
             # Handle bullet points
-            elif line.strip().startswith("*"):
+            elif line.strip().startswith("*") and not line.strip().endswith("*"):
                 text = line.strip().lstrip("*").strip()
                 text = text.replace("**", "")  # Remove bold
                 if was_numbered_list:
@@ -157,13 +211,26 @@ class NotionBlockMaker:
                 blocks.append(self._create_numbered_list_block(text))
                 was_numbered_list = True
             else:
-                # Process text without formatting
-                text = line.strip().replace("**", "")  # Remove bold formatting
-                paragraph_blocks = self._create_paragraph_block(text)
-                if isinstance(paragraph_blocks, list):
-                    blocks.extend(paragraph_blocks)
+                # Process text without bold formatting but preserve equations
+                text = line.strip()
+                if "$" in text:
+                    # Handle text with equations
+                    rich_text = self._process_equation_text(text)
+                    blocks.append(
+                        {
+                            "object": "block",
+                            "type": "paragraph",
+                            "paragraph": {"rich_text": rich_text},
+                        }
+                    )
                 else:
-                    blocks.append(paragraph_blocks)
+                    # Regular text without equations
+                    text = text.replace("**", "")  # Remove bold
+                    paragraph_blocks = self._create_paragraph_block(text)
+                    if isinstance(paragraph_blocks, list):
+                        blocks.extend(paragraph_blocks)
+                    else:
+                        blocks.append(paragraph_blocks)
                 was_numbered_list = False
 
         return blocks
