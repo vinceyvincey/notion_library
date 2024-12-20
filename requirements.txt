@@ -1,2 +1,8 @@
 fastapi==0.100.0
 hypercorn==0.14.4
+python-multipart==0.0.6
+markitdown
+gdown>=5.1.0
+requests==2.31.0
+python-magic==0.4.27
+python-magic-bin; platform_system == "Windows"
