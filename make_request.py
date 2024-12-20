@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 url = "https://fastapi-production-fc7c.up.railway.app/convert-from-url"
 drive_url = "https://drive.google.com/file/d/10wg3d5JonpROo0krS0XyGf-SWqCIeV5m/preview"
 
-headers = {"access_token": os.getenv("SERVICE_API_KEY")}
+headers = {"accesstoken": os.getenv("SERVICE_API_KEY")}
 
 try:
     logger.info(f"Sending request to {url} with drive_url: {drive_url}")

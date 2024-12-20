@@ -37,7 +37,7 @@ logger.addHandler(file_handler)
 logger.propagate = False
 
 API_KEY = os.getenv("SERVICE_API_KEY")
-API_KEY_NAME = "access_token"
+API_KEY_NAME = "access-token"
 api_key_header = APIKeyHeader(name=API_KEY_NAME, auto_error=False)
 
 
