@@ -7,7 +7,7 @@ logger = logging.getLogger(__name__)
 
 url = "http://localhost:8000/convert-from-url"
 drive_url = (
-    "https://drive.google.com/file/d/1kn6H65KevWRbvH58M5Dc-2XpJv8nhJWS/preview"
+    "https://drive.google.com/file/d/10wg3d5JonpROo0krS0XyGf-SWqCIeV5m/preview"
 )
 
 try:

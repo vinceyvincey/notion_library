@@ -9,6 +9,13 @@ from pydantic import BaseModel, field_validator
 import re
 import sys
 import requests
+import json
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
+
+OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -127,7 +134,65 @@ async def convert_from_url(drive_url: DriveURL):
                 raise ValueError("Conversion resulted in invalid output")
 
             logger.info("Conversion successful")
-            return {"text_content": result.text_content, "status": "success"}
+
+            # The raw extracted text
+            raw_text = result.text_content
+
+            # Now, we use OpenRouter to restructure the text
+            prompt_messages = [
+                {
+                    "role": "user",
+                    "content": (
+                        "You are a helpful assistant. "
+                        "Please take the following extracted text from a PDF and "
+                        "reorganize it into clearly defined sections: Abstract, Background, "
+                        "Methodology, Results, Discussion, and Conclusion. "
+                        "Make sure each section has a clear heading, structure, and is clean, readable text. Methodology should be split into materials (list of materials and sources) and methods (numbered list of steps for each method with clear references to equipment used and parameters if possible\n\n"
+                        f"{raw_text}"
+                    ),
+                }
+            ]
+
+            logger.info("Sending request to OpenRouter for cleanup and structuring")
+
+            response = requests.post(
+                url="https://openrouter.ai/api/v1/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+                },
+                data=json.dumps(
+                    {
+                        "model": "google/gemini-2.0-flash-exp:free",
+                        "messages": prompt_messages,
+                    }
+                ),
+            )
+
+            if response.status_code != 200:
+                logger.error(
+                    f"OpenRouter API returned an error: {response.status_code} - {response.text}"
+                )
+                raise HTTPException(
+                    status_code=500, detail="Failed to process text with OpenRouter"
+                )
+
+            json_response = response.json()
+
+            if "choices" not in json_response or len(json_response["choices"]) == 0:
+                logger.error("No choices returned from OpenRouter API")
+                raise HTTPException(
+                    status_code=500, detail="OpenRouter returned no valid choices"
+                )
+
+            cleaned_result = json_response["choices"][0]["message"]["content"].strip()
+            if not cleaned_result:
+                logger.error("Cleaned result from OpenRouter is empty")
+                raise HTTPException(
+                    status_code=500, detail="OpenRouter returned an empty result"
+                )
+
+            logger.info("OpenRouter processing successful")
+            return {"text_content": cleaned_result, "status": "success"}
         except Exception as e:
             logger.error(f"Error during conversion: {str(e)}")
             logger.error(traceback.format_exc())
