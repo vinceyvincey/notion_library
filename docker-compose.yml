@@ -9,4 +9,4 @@ services:
       - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
     volumes:
       - .:/app
-    command: hypercorn main:app --bind 0.0.0.0:80 
+    command: hypercorn main:app --bind 0.0.0.0:$PORT 

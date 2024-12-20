@@ -17,4 +17,4 @@ EXPOSE 80
 ENV PYTHONUNBUFFERED=1
 
 # Run app.py when the container launches
-CMD ["hypercorn", "main:app", "--bind", "0.0.0.0:80"] 
+CMD ["hypercorn", "main:app", "--bind", "0.0.0.0:$PORT"] 
