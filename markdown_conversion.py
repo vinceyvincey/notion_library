@@ -10,6 +10,8 @@ from markitdown import MarkItDown
 from dotenv import load_dotenv
 import io
 from contextlib import redirect_stdout
+import sys
+from tqdm import tqdm
 
 # Load environment variables from .env file
 load_dotenv()
@@ -20,6 +22,27 @@ OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 logger = logging.getLogger(__name__)
 
 md = MarkItDown()
+
+
+class TqdmToLogger:
+    """
+    Output stream for TQDM which will output to logger module instead of console.
+    """
+
+    def __init__(self, logger, level=logging.INFO):
+        self.logger = logger
+        self.level = level
+        self.last_msg = ""
+
+    def write(self, buf):
+        # Avoid logging empty lines and repeated messages
+        msg = buf.strip()
+        if msg and msg != self.last_msg:
+            self.logger.log(self.level, msg)
+            self.last_msg = msg
+
+    def flush(self):
+        pass
 
 
 def convert_pdf_to_markdown(drive_url) -> dict:
@@ -58,25 +81,24 @@ def convert_pdf_to_markdown(drive_url) -> dict:
                 else:
                     file_id = drive_url
 
-                # Redirect gdown output to log file
-                logger.info(f"Starting gdown download for file ID: {file_id}")
-                with io.StringIO() as buf, redirect_stdout(buf):
+                # Redirect gdown output to logger
+                logger.info(f"Starting download for file ID: {file_id}")
+                tqdm_out = TqdmToLogger(logger)
+                with redirect_stdout(tqdm_out):
                     output = gdown.download(
                         id=file_id,
                         output=temp_path,
                         quiet=False,
                     )
-                    gdown_output = buf.getvalue()
-                    logger.info(f"Gdown output: {gdown_output}")
 
                 if not output:
-                    logger.error("gdown download failed")
+                    logger.error("Download failed")
                     raise HTTPException(
                         status_code=400,
                         detail="Failed to download file from Google Drive",
                     )
 
-                logger.info("Download completed using gdown")
+                logger.info("Download completed successfully")
 
                 # Verify the file exists and has content
                 if not os.path.exists(temp_path) or os.path.getsize(temp_path) == 0:
@@ -124,46 +146,46 @@ def convert_pdf_to_markdown(drive_url) -> dict:
                 {
                     "role": "user",
                     "content": (
-                    "You are a helpful assistant.\n\n"
-                    "**Task:**\n"
-                    "Reorganize the extracted text from a PDF into a clear, concise summary. "
-                    "The goal is to provide a succinct overview with short, to-the-point sentences for easy reading. "
-                    "Organize the content into the following sections:\n"
-                    "1. Abstract: A brief summary of the key objectives, methods, results, and conclusions in 3–4 sentences.\n"
-                    "2. Background: A condensed explanation of the context, problem, or research motivation in 2–3 sentences.\n"
-                    "3. Methodology:\n"
-                    "   - Materials: A brief, bulleted list of key materials and their sources.\n"
-                    "   - Methods: A numbered list summarizing the main steps, including key equipment and parameters. Each step should be no more than one sentence.\n"
-                    "4. Results: A concise summary of the key findings in 3–4 sentences.\n"
-                    "5. Discussion: A brief interpretation of the results and their significance in 3–4 sentences.\n"
-                    "6. Conclusion: A short summary of the study's implications and any recommendations in 2–3 sentences.\n\n"
-                    "**Formatting Requirements:**\n"
-                    "- Use clear section headings (e.g., 'Abstract', 'Background').\n"
-                    "- Write in short sentences, avoiding unnecessary detail or repetition.\n"
-                    "- Use simple, direct language suitable for a general audience.\n"
-                    "- Maintain a professional tone throughout.\n\n"
-                    "**Source Text:**\n"
-                    f"{raw_text}\n\n"
-                    "**Expected Output Format:**\n"
-                    "Abstract\n"
-                    "- [Condensed abstract text in 3–4 sentences.]\n\n"
-                    "Background\n"
-                    "- [Condensed background text in 2–3 sentences.]\n\n"
-                    "Methodology\n"
-                    "Materials:\n"
-                    "- [Material 1]\n"
-                    "- [Material 2]\n"
-                    "\n"
-                    "Methods:\n"
-                    "1. [Step 1 in one sentence.]\n"
-                    "2. [Step 2 in one sentence.]\n"
-                    "...\n\n"
-                    "Results\n"
-                    "- [Key findings in 3–4 sentences.]\n\n"
-                    "Discussion\n"
-                    "- [Interpretation in 3–4 sentences.]\n\n"
-                    "Conclusion\n"
-                    "- [Summary in 2–3 sentences.]\n"
+                        "You are a helpful assistant.\n\n"
+                        "**Task:**\n"
+                        "Reorganize the extracted text from a PDF into a clear, concise summary. "
+                        "The goal is to provide a succinct overview with short, to-the-point sentences for easy reading. "
+                        "Organize the content into the following sections:\n"
+                        "1. Abstract: A brief summary of the key objectives, methods, results, and conclusions in 3–4 sentences.\n"
+                        "2. Background: A condensed explanation of the context, problem, or research motivation in 2–3 sentences.\n"
+                        "3. Methodology:\n"
+                        "   - Materials: A brief, bulleted list of key materials and their sources.\n"
+                        "   - Methods: A numbered list summarizing the main steps, including key equipment and parameters. Each step should be no more than one sentence.\n"
+                        "4. Results: A concise summary of the key findings in 3–4 sentences.\n"
+                        "5. Discussion: A brief interpretation of the results and their significance in 3–4 sentences.\n"
+                        "6. Conclusion: A short summary of the study's implications and any recommendations in 2–3 sentences.\n\n"
+                        "**Formatting Requirements:**\n"
+                        "- Use clear section headings (e.g., 'Abstract', 'Background').\n"
+                        "- Write in short sentences, avoiding unnecessary detail or repetition.\n"
+                        "- Use simple, direct language suitable for a general audience.\n"
+                        "- Maintain a professional tone throughout.\n\n"
+                        "**Source Text:**\n"
+                        f"{raw_text}\n\n"
+                        "**Expected Output Format:**\n"
+                        "Abstract\n"
+                        "- [Condensed abstract text in 3–4 sentences.]\n\n"
+                        "Background\n"
+                        "- [Condensed background text in 2–3 sentences.]\n\n"
+                        "Methodology\n"
+                        "Materials:\n"
+                        "- [Material 1]\n"
+                        "- [Material 2]\n"
+                        "\n"
+                        "Methods:\n"
+                        "1. [Step 1 in one sentence.]\n"
+                        "2. [Step 2 in one sentence.]\n"
+                        "...\n\n"
+                        "Results\n"
+                        "- [Key findings in 3–4 sentences.]\n\n"
+                        "Discussion\n"
+                        "- [Interpretation in 3–4 sentences.]\n\n"
+                        "Conclusion\n"
+                        "- [Summary in 2–3 sentences.]\n"
                     ),
                 }
             ]

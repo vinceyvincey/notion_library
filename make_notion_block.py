@@ -183,49 +183,52 @@ class NotionBlockMaker:
         blocks = []
         lines = section.split("\n")
         was_numbered_list = False
+        list_counter = 0  # Track the current number in the list
 
         for line in lines:
             if not line.strip():
                 continue
 
-            # Handle section headers (e.g., ## Background)
+            # Handle section headers
             if line.strip().startswith("##"):
                 header_text = line.strip("#").strip()
-                # Remove any remaining ** markers
                 header_text = header_text.replace("*", "").strip()
                 blocks.append(self._create_heading_2_block(header_text))
                 was_numbered_list = False
-            # Handle subsection headers (e.g., ### Methods)
+                list_counter = 0
+            # Handle subsection headers
             elif line.strip().startswith("###"):
                 header_text = line.strip("#").strip()
-                # Remove any remaining ** markers
                 header_text = header_text.replace("*", "").strip()
                 blocks.append(self._create_heading_3_block(header_text))
                 was_numbered_list = False
+                list_counter = 0
             # Handle headers with ** syntax
             elif line.strip().startswith("**") and line.strip().endswith("**"):
                 header_text = line.strip().strip("*").strip()
                 blocks.append(self._create_heading_2_block(header_text))
                 was_numbered_list = False
+                list_counter = 0
             # Handle bullet points
             elif line.strip().startswith("*") and not line.strip().endswith("*"):
                 text = line.strip().lstrip("*").strip()
-                text = text.replace("**", "")  # Remove bold
+                text = text.replace("**", "")
                 if was_numbered_list:
                     blocks.append(self._create_bullet_list_block(text, indent=1))
                 else:
                     blocks.append(self._create_bullet_list_block(text))
+                was_numbered_list = False
+                list_counter = 0
             # Handle numbered lists
-            elif line.strip().startswith("1.") or line.strip().startswith("2."):
+            elif any(line.strip().startswith(f"{n}.") for n in range(1, 10)):
                 text = line.strip().split(".", 1)[1].strip()
-                text = text.replace("**", "")  # Remove bold
+                text = text.replace("**", "")
                 blocks.append(self._create_numbered_list_block(text))
                 was_numbered_list = True
+                list_counter += 1
             else:
-                # Process text without bold formatting but preserve equations
                 text = line.strip()
                 if "$" in text:
-                    # Handle text with equations
                     rich_text = self._process_equation_text(text)
                     blocks.append(
                         {
@@ -235,14 +238,14 @@ class NotionBlockMaker:
                         }
                     )
                 else:
-                    # Regular text without equations
-                    text = text.replace("**", "")  # Remove bold
+                    text = text.replace("**", "")
                     paragraph_blocks = self._create_paragraph_block(text)
                     if isinstance(paragraph_blocks, list):
                         blocks.extend(paragraph_blocks)
                     else:
                         blocks.append(paragraph_blocks)
                 was_numbered_list = False
+                list_counter = 0
 
         return blocks
 
