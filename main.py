@@ -1,6 +1,7 @@
 import logging
 from fastapi import FastAPI, HTTPException, Depends, Request
 from fastapi.security.api_key import APIKeyHeader
+from fastapi.middleware.cors import CORSMiddleware
 from markitdown import MarkItDown
 import os
 from pydantic import BaseModel, field_validator
@@ -68,6 +69,21 @@ class DriveURL(BaseModel):
 
 
 app = FastAPI()
+
+# Configure CORS
+origins = [
+    "https://www.notion.so",  # Add Notion's origin
+    # Add other origins if needed
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 md = MarkItDown()
 
 
