@@ -118,6 +118,21 @@ async def notion_webhook(request: Request, api_key: str = Depends(get_api_key)):
         # Assuming the first file is the one we want
         file_info = files[0]
         drive_url = file_info.get("external", {}).get("url")
+
+        # Clean up the URL if necessary
+        if drive_url:
+            drive_url = drive_url.strip().strip(
+                ";"
+            )  # Remove any trailing semicolons or whitespace
+
+            # Correct the URL format if necessary
+            if "drive.google.com" in drive_url and "/file/d/" in drive_url:
+                # Extract the file ID and construct a direct download link
+                file_id_match = re.search(r"/file/d/([a-zA-Z0-9_-]+)", drive_url)
+                if file_id_match:
+                    file_id = file_id_match.group(1)
+                    drive_url = f"https://drive.google.com/uc?id={file_id}"
+
         if not drive_url:
             raise HTTPException(
                 status_code=400, detail="No valid URL found in the file information"
