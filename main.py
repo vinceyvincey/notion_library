@@ -125,13 +125,14 @@ async def notion_webhook(request: Request, api_key: str = Depends(get_api_key)):
                 ";"
             )  # Remove any trailing semicolons or whitespace
 
-            # Correct the URL format if necessary
-            if "drive.google.com" in drive_url and "/file/d/" in drive_url:
+            # Extract file ID only if it hasn't been processed yet
+            if not drive_url.startswith("https://drive.google.com/uc"):
                 # Extract the file ID and construct a direct download link
                 file_id_match = re.search(r"/file/d/([a-zA-Z0-9_-]+)", drive_url)
                 if file_id_match:
                     file_id = file_id_match.group(1)
                     drive_url = f"https://drive.google.com/uc?id={file_id}"
+                    logger.info(f"Processed URL: {drive_url}")
 
         if not drive_url:
             raise HTTPException(
