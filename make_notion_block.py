@@ -78,6 +78,50 @@ class NotionBlockMaker:
 
         return sections
 
+    def _split_long_text(self, text: str, limit: int = 2000) -> list:
+        """
+        Split text into chunks that respect Notion's character limit.
+        Try to split on sentence boundaries when possible.
+        """
+        if len(text) <= limit:
+            return [text]
+
+        chunks = []
+        while text:
+            if len(text) <= limit:
+                chunks.append(text)
+                break
+
+            # Try to find a sentence boundary within the limit
+            split_point = limit
+
+            # Look for sentence endings (.!?) followed by a space or end of text
+            for punct in [". ", "! ", "? "]:
+                last_punct = text[:limit].rfind(punct)
+                if last_punct != -1:
+                    split_point = last_punct + 1  # Include the punctuation
+                    break
+
+            # If no sentence boundary found, try splitting on other punctuation
+            if split_point == limit:
+                for punct in [", ", "; ", "): ", "] "]:
+                    last_punct = text[:limit].rfind(punct)
+                    if last_punct != -1:
+                        split_point = last_punct + 1
+                        break
+
+            # If still no good split point, split on space
+            if split_point == limit:
+                last_space = text[:limit].rfind(" ")
+                if last_space != -1:
+                    split_point = last_space + 1
+
+            # Add the chunk and continue with remaining text
+            chunks.append(text[:split_point].strip())
+            text = text[split_point:].strip()
+
+        return chunks
+
     def _convert_section_to_blocks(self, section: str) -> list:
         """Convert a markdown section to Notion blocks."""
         blocks = []
@@ -98,27 +142,28 @@ class NotionBlockMaker:
                 header_text = line.strip("#").strip()
                 blocks.append(self._create_heading_3_block(header_text))
                 was_numbered_list = False
-            # Handle bullet points - remove markdown formatting for bullets
+            # Handle bullet points
             elif line.strip().startswith("*"):
                 text = line.strip().lstrip("*").strip()
-                # Remove any remaining markdown formatting for bullet points
                 text = text.replace("**", "")  # Remove bold
                 if was_numbered_list:
-                    # Add indentation for bullets following numbered lists
                     blocks.append(self._create_bullet_list_block(text, indent=1))
                 else:
                     blocks.append(self._create_bullet_list_block(text))
             # Handle numbered lists
             elif line.strip().startswith("1.") or line.strip().startswith("2."):
                 text = line.strip().split(".", 1)[1].strip()
-                # Remove any remaining markdown formatting
                 text = text.replace("**", "")  # Remove bold
                 blocks.append(self._create_numbered_list_block(text))
                 was_numbered_list = True
             else:
                 # Process text without formatting
                 text = line.strip().replace("**", "")  # Remove bold formatting
-                blocks.append(self._create_paragraph_block(text))
+                paragraph_blocks = self._create_paragraph_block(text)
+                if isinstance(paragraph_blocks, list):
+                    blocks.extend(paragraph_blocks)
+                else:
+                    blocks.append(paragraph_blocks)
                 was_numbered_list = False
 
         return blocks
@@ -215,12 +260,30 @@ class NotionBlockMaker:
         }
 
     def _create_paragraph_block(self, text: str) -> Dict[str, Any]:
-        """Create a paragraph block."""
-        return {
-            "object": "block",
-            "type": "paragraph",
-            "paragraph": {"rich_text": [{"type": "text", "text": {"content": text}}]},
-        }
+        """Create a paragraph block, splitting if necessary."""
+        # Split text if it exceeds Notion's limit
+        text_chunks = self._split_long_text(text)
+
+        if len(text_chunks) == 1:
+            return {
+                "object": "block",
+                "type": "paragraph",
+                "paragraph": {
+                    "rich_text": [{"type": "text", "text": {"content": text}}]
+                },
+            }
+        else:
+            # Return list of paragraph blocks for long text
+            return [
+                {
+                    "object": "block",
+                    "type": "paragraph",
+                    "paragraph": {
+                        "rich_text": [{"type": "text", "text": {"content": chunk}}]
+                    },
+                }
+                for chunk in text_chunks
+            ]
 
     def _append_blocks_to_page(self, page_id: str, blocks: list) -> bool:
         """Append blocks to a Notion page."""
