@@ -8,6 +8,8 @@ import re
 from fastapi import HTTPException
 from markitdown import MarkItDown
 from dotenv import load_dotenv
+import io
+from contextlib import redirect_stdout
 
 # Load environment variables from .env file
 load_dotenv()
@@ -56,13 +58,16 @@ def convert_pdf_to_markdown(drive_url) -> dict:
                 else:
                     file_id = drive_url
 
-                # Use gdown to download the file using the ID
-                logger.info(f"Attempting download with gdown using file ID: {file_id}")
-                output = gdown.download(
-                    id=file_id,
-                    output=temp_path,
-                    quiet=False,
-                )
+                # Redirect gdown output to log file
+                logger.info(f"Starting gdown download for file ID: {file_id}")
+                with io.StringIO() as buf, redirect_stdout(buf):
+                    output = gdown.download(
+                        id=file_id,
+                        output=temp_path,
+                        quiet=False,
+                    )
+                    gdown_output = buf.getvalue()
+                    logger.info(f"Gdown output: {gdown_output}")
 
                 if not output:
                     logger.error("gdown download failed")

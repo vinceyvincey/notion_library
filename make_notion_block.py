@@ -26,15 +26,10 @@ class NotionBlockMaker:
     def create_blocks_from_markdown(self, page_id: str, markdown_content: str) -> bool:
         """
         Convert markdown content to Notion blocks and append them to the specified page.
-
-        Args:
-            page_id (str): The ID of the Notion page to append blocks to
-            markdown_content (str): The markdown content to convert
-
-        Returns:
-            bool: True if successful, False otherwise
         """
         try:
+            logger.info("Starting conversion of markdown to Notion blocks")
+
             # Find the start of the actual content (from Abstract)
             content_start = markdown_content.find("**Abstract**")
             if content_start == -1:
@@ -44,19 +39,35 @@ class NotionBlockMaker:
                 logger.error("No Abstract section found in the content")
                 return False
 
+            logger.info("Found Abstract section, processing content")
+
             # Only process content from Abstract onwards
             markdown_content = markdown_content[content_start:]
 
             # Split content into sections based on headers
+            logger.info("Splitting content into sections")
             sections = self._split_into_sections(markdown_content)
+            logger.info(f"Found {len(sections)} sections to process")
 
             # Convert sections to Notion blocks
             blocks = []
-            for section in sections:
-                blocks.extend(self._convert_section_to_blocks(section))
+            for i, section in enumerate(sections, 1):
+                logger.info(f"Processing section {i} of {len(sections)}")
+                section_blocks = self._convert_section_to_blocks(section)
+                blocks.extend(section_blocks)
+
+            logger.info(f"Created {len(blocks)} Notion blocks in total")
 
             # Append blocks to the page
-            return self._append_blocks_to_page(page_id, blocks)
+            logger.info(f"Starting to append blocks to Notion page: {page_id}")
+            success = self._append_blocks_to_page(page_id, blocks)
+
+            if success:
+                logger.info("Successfully added all blocks to Notion page")
+            else:
+                logger.error("Failed to add blocks to Notion page")
+
+            return success
 
         except Exception as e:
             logger.error(f"Error creating Notion blocks: {str(e)}")
@@ -358,8 +369,14 @@ class NotionBlockMaker:
             url = f"{self.base_url}/blocks/{page_id}/children"
 
             # Notion API has a limit of 100 blocks per request
+            total_chunks = (len(blocks) + 99) // 100  # Round up division
             for i in range(0, len(blocks), 100):
                 chunk = blocks[i : i + 100]
+                current_chunk = (i // 100) + 1
+                logger.info(
+                    f"Sending chunk {current_chunk} of {total_chunks} to Notion API"
+                )
+
                 response = requests.patch(
                     url, headers=self.headers, json={"children": chunk}
                 )
@@ -367,6 +384,8 @@ class NotionBlockMaker:
                 if response.status_code != 200:
                     logger.error(f"Failed to append blocks: {response.text}")
                     return False
+
+                logger.info(f"Successfully added chunk {current_chunk} to Notion page")
 
             return True
 
