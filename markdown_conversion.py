@@ -4,6 +4,7 @@ import os
 import gdown
 import requests
 import json
+import re
 from fastapi import HTTPException
 from markitdown import MarkItDown
 from dotenv import load_dotenv
@@ -37,10 +38,28 @@ def convert_pdf_to_markdown(drive_url) -> dict:
             logger.info(f"Temporary file path: {temp_path}")
 
             try:
-                # Use gdown to download the file using the ID parameter
-                logger.info("Attempting download with gdown...")
+                # Extract file ID from URL if necessary
+                if drive_url.startswith("https://"):
+                    if "id=" in drive_url:
+                        file_id = drive_url.split("id=")[1]
+                    else:
+                        file_id_match = re.search(
+                            r"/file/d/([a-zA-Z0-9_-]+)", drive_url
+                        )
+                        if file_id_match:
+                            file_id = file_id_match.group(1)
+                        else:
+                            raise HTTPException(
+                                status_code=400,
+                                detail="Could not extract valid Google Drive file ID from URL",
+                            )
+                else:
+                    file_id = drive_url
+
+                # Use gdown to download the file using the ID
+                logger.info(f"Attempting download with gdown using file ID: {file_id}")
                 output = gdown.download(
-                    id=drive_url,
+                    id=file_id,
                     output=temp_path,
                     quiet=False,
                 )
