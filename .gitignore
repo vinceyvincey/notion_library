@@ -88,13 +88,14 @@ profile_default/
 ipython_config.py
 
 # Environments
-.env
+*.env
 .venv
 env/
 venv/
 ENV/
 env.bak/
 venv.bak/
+docker.env
 
 # Spyder project settings
 .spyderproject
