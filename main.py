@@ -103,6 +103,8 @@ async def convert_from_url(drive_url: DriveURL, api_key: str = Depends(get_api_k
 async def notion_webhook(request: Request, api_key: str = Depends(get_api_key)):
     try:
         payload = await request.json()
+        logger.info(f"Received Notion webhook payload: {payload}")
+
         # Navigate through the JSON structure to find the URL
         files = (
             payload.get("data", {})
