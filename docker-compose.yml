@@ -6,8 +6,8 @@ services:
     ports:
       - "8000:8000"  # Host port : Container port
     environment:
-      - PORT=${PORT}
       - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
+      - PORT=8000
     volumes:
-      - .:/app
-    command: hypercorn main:app --bind 0.0.0.0:8000 
+      - .:/app  # Useful for local development
+    # No need to override the command since it's defined in the Dockerfile
