@@ -1,5 +1,6 @@
 import logging
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException, Depends
+from fastapi.security.api_key import APIKeyHeader
 from markitdown import MarkItDown
 import os
 from pydantic import BaseModel, field_validator
@@ -35,6 +36,10 @@ logger.addHandler(file_handler)
 # Prevent duplicate logs
 logger.propagate = False
 
+API_KEY = os.getenv("SERVICE_API_KEY")
+API_KEY_NAME = "access_token"
+api_key_header = APIKeyHeader(name=API_KEY_NAME, auto_error=False)
+
 
 class DriveURL(BaseModel):
     url: str
@@ -66,8 +71,15 @@ app = FastAPI()
 md = MarkItDown()
 
 
+async def get_api_key(api_key_header: str = Depends(api_key_header)):
+    if api_key_header == API_KEY:
+        return api_key_header
+    else:
+        raise HTTPException(status_code=403, detail="Could not validate credentials")
+
+
 @app.post("/convert-from-url")
-async def convert_from_url(drive_url: DriveURL):
+async def convert_from_url(drive_url: DriveURL, api_key: str = Depends(get_api_key)):
     return convert_pdf_to_markdown(drive_url.url)
 
 
