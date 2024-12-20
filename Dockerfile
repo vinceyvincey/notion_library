@@ -1,5 +1,5 @@
 # Use the official Python image from the Docker Hub
-FROM python:3.9-slim
+FROM python:3.13.0-slim
 
 # Set the working directory in the container
 WORKDIR /app
@@ -17,4 +17,4 @@ EXPOSE 80
 ENV PYTHONUNBUFFERED=1
 
 # Run app.py when the container launches
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "80"] 
+CMD ["hypercorn", "main:app", "--bind", "0.0.0.0:80"] 
