@@ -82,31 +82,44 @@ class NotionBlockMaker:
         """Convert a markdown section to Notion blocks."""
         blocks = []
         lines = section.split("\n")
+        was_numbered_list = False  # Track if previous item was a numbered list
 
         for line in lines:
             if not line.strip():
                 continue
 
-            # Handle bold headers (e.g., **Abstract**)
-            if line.startswith("**") and line.endswith("**"):
-                header_text = line.strip("*")
-                blocks.append(self._create_heading_1_block(header_text))
+            # Handle section headers (e.g., ## Background)
+            if line.strip().startswith("##"):
+                header_text = line.strip("#").strip()
+                blocks.append(self._create_heading_2_block(header_text))
+                was_numbered_list = False
+            # Handle subsection headers (e.g., ### Methods)
+            elif line.strip().startswith("###"):
+                header_text = line.strip("#").strip()
+                blocks.append(self._create_heading_3_block(header_text))
+                was_numbered_list = False
             # Handle bullet points - remove markdown formatting for bullets
             elif line.strip().startswith("*"):
                 text = line.strip().lstrip("*").strip()
                 # Remove any remaining markdown formatting for bullet points
                 text = text.replace("**", "")  # Remove bold
-                blocks.append(self._create_bullet_list_block(text))
+                if was_numbered_list:
+                    # Add indentation for bullets following numbered lists
+                    blocks.append(self._create_bullet_list_block(text, indent=1))
+                else:
+                    blocks.append(self._create_bullet_list_block(text))
             # Handle numbered lists
             elif line.strip().startswith("1.") or line.strip().startswith("2."):
                 text = line.strip().split(".", 1)[1].strip()
                 # Remove any remaining markdown formatting
                 text = text.replace("**", "")  # Remove bold
                 blocks.append(self._create_numbered_list_block(text))
+                was_numbered_list = True
             else:
                 # Process text without formatting
                 text = line.strip().replace("**", "")  # Remove bold formatting
                 blocks.append(self._create_paragraph_block(text))
+                was_numbered_list = False
 
         return blocks
 
@@ -159,16 +172,37 @@ class NotionBlockMaker:
             },
         }
 
-    def _create_bullet_list_block(self, text: str) -> Dict[str, Any]:
-        """Create a bullet list block."""
-        # For bullet points, we can't use annotations, so we'll use plain text
+    def _create_heading_2_block(self, text: str) -> Dict[str, Any]:
+        """Create a heading 2 block."""
         return {
+            "object": "block",
+            "type": "heading_2",
+            "heading_2": {"rich_text": [{"type": "text", "text": {"content": text}}]},
+        }
+
+    def _create_heading_3_block(self, text: str) -> Dict[str, Any]:
+        """Create a heading 3 block."""
+        return {
+            "object": "block",
+            "type": "heading_3",
+            "heading_3": {"rich_text": [{"type": "text", "text": {"content": text}}]},
+        }
+
+    def _create_bullet_list_block(self, text: str, indent: int = 0) -> Dict[str, Any]:
+        """Create a bullet list block."""
+        block = {
             "object": "block",
             "type": "bulleted_list_item",
             "bulleted_list_item": {
                 "rich_text": [{"type": "text", "text": {"content": text}}]
             },
         }
+
+        if indent > 0:
+            block["bulleted_list_item"]["color"] = "default"
+            block["bulleted_list_item"]["children"] = []
+
+        return block
 
     def _create_numbered_list_block(self, text: str) -> Dict[str, Any]:
         """Create a numbered list block."""
