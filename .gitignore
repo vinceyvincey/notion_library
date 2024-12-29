@@ -127,3 +127,4 @@ data
 
 make_api_request.py
 generate_apikey.py
+.python-version

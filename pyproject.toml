@@ -1,0 +1,18 @@
+[project]
+name = "notion_library"
+version = "0.1.0"
+description = "A library for converting PDFs to Notion pages"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "fastapi>=0.115.6",
+    "hypercorn>=0.17.3",
+    "pydantic>=2.10.4",
+    "pydantic-settings>=2.1.0",
+    "python-dotenv>=1.0.1",
+    "loguru>=0.7.2",
+    "markdown-notion",
+]
+
+[tool.uv.sources]
+markdown-notion = { git = "https://github.com/vinceyvincey/markdown_notion.git" }
