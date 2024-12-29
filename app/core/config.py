@@ -2,11 +2,10 @@ import sys
 from functools import lru_cache
 
 from dotenv import load_dotenv
-
-load_dotenv()  # Load environment variables from .env
-
 from loguru import logger
 from pydantic_settings import BaseSettings
+
+load_dotenv()  # Load environment variables from .env
 
 
 class Settings(BaseSettings):
